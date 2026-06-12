@@ -1,0 +1,6 @@
+{
+  "name": "Translation Portal",
+  "description": "An elegant translation application supporting English, Spanish, Bangla, French, and Arabic with secure Email/Password and Google OAuth authentication.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

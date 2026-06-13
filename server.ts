@@ -61,62 +61,68 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+// --- Express App Setup ---
+const app = express();
+app.use(express.json());
 
-  app.use(express.json());
+// --- MongoDB Atlas Configuration ---
+const MONGODB_URI = process.env.MONGODB_URI;
+const DB_NAME = "translate_lang_db";
 
-  // --- MongoDB Atlas Connection ---
-  const MONGODB_URI = process.env.MONGODB_URI;
-  if (!MONGODB_URI) {
-    throw new Error("MONGODB_URI environment variable is not set.");
+if (!MONGODB_URI) {
+  console.error("MONGODB_URI environment variable is not set.");
+}
+
+const client = new MongoClient(MONGODB_URI || "");
+const db: Db = client.db(DB_NAME);
+const usersCollection: Collection<User> = db.collection("users");
+const translationsCollection: Collection<Translation> = db.collection("translations");
+const sessionsCollection: Collection<SessionDoc> = db.collection("sessions");
+
+// Shared DB connection promise to ensure we only connect once
+let dbConnectionPromise: Promise<MongoClient> | null = null;
+async function ensureDbConnected() {
+  if (!MONGODB_URI) throw new Error("MONGODB_URI is missing");
+  if (!dbConnectionPromise) {
+    dbConnectionPromise = client.connect();
   }
-  const DB_NAME = "translate_lang_db";
-  
-  const client = new MongoClient(MONGODB_URI);
-  await client.connect();
-  console.log("Successfully connected to MongoDB Atlas!");
+  return dbConnectionPromise;
+}
 
-  const db: Db = client.db(DB_NAME);
-  const usersCollection: Collection<User> = db.collection("users");
-  const translationsCollection: Collection<Translation> = db.collection("translations");
-  const sessionsCollection: Collection<SessionDoc> = db.collection("sessions");
-
-  // Helper to obtain authenticated user from headers
-  async function getAuthenticatedUser(req: express.Request): Promise<User | null> {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return null;
-    }
-    const token = authHeader.split(" ")[1];
-    const session = await sessionsCollection.findOne({ token });
-    if (!session) {
-      return null;
-    }
-    return await usersCollection.findOne({ id: session.userId });
+// Helper to obtain authenticated user from headers
+async function getAuthenticatedUser(req: express.Request): Promise<User | null> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null;
   }
+  const token = authHeader.split(" ")[1];
+  await ensureDbConnected();
+  const session = await sessionsCollection.findOne({ token });
+  if (!session) {
+    return null;
+  }
+  return await usersCollection.findOne({ id: session.userId });
+}
 
-  // --- API Authentication Routes ---
+// --- API Authentication Routes ---
 
-  // Email/Password Signup
-  app.post("/api/auth/signup", async (req, res) => {
-    try {
-      const { email, password, name } = req.body;
-      if (!email || !password || !name) {
-        res.status(400).json({ error: "Name, email, and password are required" });
-        return;
-      }
+app.post("/api/auth/signup", async (req, res) => {
+  try {
+    await ensureDbConnected();
+    const { email, password, name } = req.body;
+    if (!email || !password || !name) {
+      res.status(400).json({ error: "Name, email, and password are required" });
+      return;
+    }
 
-      const lowerEmail = email.toLowerCase().trim();
+    const lowerEmail = email.toLowerCase().trim();
+    const existingUser = await usersCollection.findOne({ email: lowerEmail });
+    if (existingUser) {
+      res.status(400).json({ error: "user_exists", message: "A user with this email already exists" });
+      return;
+    }
 
-      const existingUser = await usersCollection.findOne({ email: lowerEmail });
-      if (existingUser) {
-        res.status(400).json({ error: "user_exists", message: "A user with this email already exists" });
-        return;
-      }
-
-      const id = crypto.randomUUID();
+    const id = crypto.randomUUID();
       const salt = generateSalt();
       const passwordHash = hashPassword(password, salt);
 
@@ -404,6 +410,7 @@ CRITICAL MANDATE: Output ONLY the direct translated text. Do NOT wrap your trans
 
   // --- Vite Dev Server Middleware / Static Production Assets ---
 
+async function setupVite() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -417,10 +424,24 @@ CRITICAL MANDATE: Output ONLY the direct translated text. Do NOT wrap your trans
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server successfully started on http://localhost:${PORT}`);
-  });
 }
 
-startServer();
+// Only start the listener if running locally (not in a serverless function)
+if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  setupVite().then(() => {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server successfully started on http://localhost:${PORT}`);
+    });
+    
+    ensureDbConnected()
+      .then(() => console.log("Successfully connected to MongoDB Atlas!"))
+      .catch(err => console.error("Failed to connect to MongoDB:", err));
+  });
+} else {
+  // In production (Vercel), we still need to set up static serving
+  setupVite();
+}
+
+// Export the app for Vercel
+export default app;

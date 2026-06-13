@@ -438,7 +438,7 @@ async function setupVite() {
   }
 }
 
-// Only start the listener if running locally (not in a serverless function)
+// Only start the listener if running locally (not in Vercel)
 if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
   const PORT = process.env.PORT || 3000;
   setupVite().then(() => {
@@ -451,8 +451,9 @@ if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
       .catch(err => console.error("Failed to connect to MongoDB:", err));
   });
 } else {
-  // In production (Vercel), we still need to set up static serving
-  setupVite();
+  // Running on Vercel production:
+  // Let ensureDbConnected run immediately when a serverless instance spins up
+  ensureDbConnected().catch(err => console.error("MongoDB background connection failed:", err));
 }
 
 // Export the app for Vercel

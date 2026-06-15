@@ -27,23 +27,29 @@ export interface SessionDoc {
   createdAt: Date;
 }
 
-const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = "translate_lang_db";
 
-if (!MONGODB_URI) {
-  console.error("MONGODB_URI environment variable is not set.");
-}
+let client: MongoClient | null = null;
+let db: Db | null = null;
 
-const client = new MongoClient(MONGODB_URI || "");
-const db: Db = client.db(DB_NAME);
-export const usersCollection: Collection<User> = db.collection("users");
-export const translationsCollection: Collection<Translation> = db.collection("translations");
-export const sessionsCollection: Collection<SessionDoc> = db.collection("sessions");
+export let usersCollection: Collection<User>;
+export let translationsCollection: Collection<Translation>;
+export let sessionsCollection: Collection<SessionDoc>;
 
 // Shared DB connection promise to ensure we only connect once
 let dbConnectionPromise: Promise<MongoClient> | null = null;
 export async function ensureDbConnected() {
-  if (!MONGODB_URI) throw new Error("MONGODB_URI is missing");
+  const uri = process.env.MONGODB_URI;
+  if (!uri) throw new Error("MONGODB_URI is missing");
+  
+  if (!client) {
+    client = new MongoClient(uri);
+    db = client.db(DB_NAME);
+    usersCollection = db.collection<User>("users");
+    translationsCollection = db.collection<Translation>("translations");
+    sessionsCollection = db.collection<SessionDoc>("sessions");
+  }
+  
   if (!dbConnectionPromise) {
     dbConnectionPromise = client.connect();
   }

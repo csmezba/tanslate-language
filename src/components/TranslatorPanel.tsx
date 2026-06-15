@@ -176,7 +176,7 @@ export default function TranslatorPanel({ token, user, onLogout }: TranslatorPan
           </div>
           <div>
             <h1 className="text-xl font-light text-white tracking-tight flex items-center gap-1.5">
-              MJ <span className="text-zinc-500 italic">Translator</span> <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-500/10 text-indigo-450 rounded-full border border-indigo-500/20">Gemini Fast</span>
+              Glossa <span className="text-zinc-500 italic">Translator</span> <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-500/10 text-indigo-450 rounded-full border border-indigo-500/20">Gemini Fast</span>
             </h1>
             <p className="text-xs text-zinc-500 mt-0.5" id="user-display-badge">
               Active Session: <span className="text-zinc-300 font-semibold">{user.name}</span> <span className="text-zinc-800">|</span> <span className="text-zinc-400 font-medium">{user.email}</span>
@@ -609,7 +609,7 @@ export default function TranslatorPanel({ token, user, onLogout }: TranslatorPan
       </AnimatePresence>
 
       <footer className="mt-12 text-center text-[10px] text-zinc-650 font-sans tracking-widest uppercase">
-        Multilingual Translation Portal
+        Multilingual Translation Portal • Powered by Google Gemini 3.5 Flash Build
       </footer>
     </div>
   );
